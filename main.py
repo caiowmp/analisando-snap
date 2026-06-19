@@ -1,8 +1,15 @@
 import csv
+import math
+import random
 import igraph as ig
 import matplotlib.pyplot as plt
 from pathlib import Path
 from statistics import mean
+import time
+import numpy as np
+import scipy.stats as stats
+from collections import Counter
+
 
 ARQUIVO = "soc-sign-bitcoinotc.csv"
 
@@ -113,8 +120,6 @@ def gerar_imagem_grafo(grafo, arquivo):
         print(f"A imagem já existe {arquivo}. Caso queira gerar novamente, por favor, remova o arquivo existente.")
         return
     
-
-    # fig, ax = plt.subplots(figsize=(50, 50))  # Tamanho da figura em polegadas
     fig, ax = plt.subplots(figsize=(30, 30))  # Tamanho da figura em polegadas
     
     layout = grafo.layout("fr")
@@ -236,6 +241,180 @@ def analisar_distribuicao_grau(grafo, titulo="DISTRIBUIÇÃO DE GRAU"):
         return
     plt.savefig("imgs/distribuicao_grau.png", dpi=300, bbox_inches="tight")
 
+def analisar_algoritmos(grafo, algoritmo, n_execucoes):
+    print("=" * 60)
+    print(f"ANÁLISE DE DESEMPENHO: {algoritmo.upper()}".center(60))
+    print("=" * 60)
+
+    tempos = []
+
+    algoritmos = {
+        "bfs": lambda: grafo.bfs(0),
+        "dfs": lambda: grafo.dfs(0),
+        "is_eulerian": lambda: grafo.is_connected() and all(grau % 2 == 0 for grau in g.degree()),
+
+        "tarjan": lambda: grafo.connected_components(mode="strong"),
+
+        "kruskal": lambda: grafo.spanning_tree(
+            weights=grafo.es["weight"]
+        ),
+
+        "bellman_ford": lambda: grafo.distances(
+            source=0,
+            weights="weight",
+            algorithm="bellman_ford"
+        ),    
+
+        "floyd_warshall": lambda: grafo.distances(),
+    }
+
+    for _ in range(n_execucoes):
+        inicio = time.perf_counter()
+        
+        algoritmos[algoritmo]()        
+        
+        fim = time.perf_counter()
+        tempos.append(fim - inicio)
+
+    media = np.mean(tempos)
+    desvio_padrao = np.std(tempos, ddof=1)
+
+    confianca = 0.95
+    z_critico = stats.norm.ppf((1 + confianca) / 2)
+
+    margem_erro = z_critico * (
+        desvio_padrao / np.sqrt(n_execucoes)
+    )
+
+    ic_inferior = media - margem_erro
+    ic_superior = media + margem_erro
+
+    print(f"Média de Tempo: {media:.6f} s")
+    print(f"Desvio Padrão: {desvio_padrao:.6f} s")
+    print(
+        f"Intervalo de Confiança (95%): "
+        f"[{ic_inferior:.6f}, {ic_superior:.6f}]"
+    )
+
+def analisar_lei_potencia(grafo, titulo="ANÁLISE DE LEI DE POTÊNCIA"):
+    print("=" * 60)
+    print(titulo.center(60))
+    print("=" * 60)    
+    
+    # 1. Coletar os graus de todos os vértices do seu grafo g
+    graus = grafo.degree()
+
+    # 2. Contar a frequência de cada grau k
+    contagem_graus = Counter(graus)
+    total_vertices = len(graus)
+
+    # Separar os valores de k e suas respectivas frequências/probabilidades
+    lista_k = np.array(list(contagem_graus.keys()))
+    frequencias = np.array(list(contagem_graus.values()))
+    p_k = frequencias / total_vertices  # Probabilidade P(k)
+
+    # Filtrar k = 0 para evitar problemas matemáticos com o logaritmo
+    mascara = lista_k > 0
+    lista_k = lista_k[mascara]
+    p_k = p_k[mascara]
+
+    # 3. Plotar o gráfico em escala Log-Log
+    plt.figure(figsize=(8, 5))
+    plt.scatter(lista_k, p_k, color='darkblue', alpha=0.7, edgecolors='black', label='Dados da Rede')
+
+    # Configurar a escala logarítmica nos dois eixos (exigência do trabalho)
+    plt.xscale('log')
+    plt.yscale('log')
+
+    # Customização do gráfico (Tema Claro)
+    plt.xlabel('Grau (k) - Escala Log')
+    plt.ylabel('Probabilidade P(k) - Escala Log')
+    plt.title('Distribuição de Graus em Escala Log-Log')
+    plt.grid(True, which="both", ls="--", alpha=0.5)
+    plt.legend()
+
+    # Salvar a imagem para o seu relatório
+    if(Path.exists("imgs/distribuicao_graus_loglog.png")):
+        print("A imagem da distribuição de graus em escala log-log já existe. Caso queira gerar novamente, por favor, remova o arquivo existente.")
+        return
+    
+    plt.savefig('imgs/distribuicao_graus_loglog.png', dpi=300, bbox_inches='tight')
+    # plt.show()
+
+def analisar_robustez_centralidade(grafo, percentual=0.05):
+    g = grafo.copy()
+
+    n_remover = math.ceil(g.vcount() * percentual)
+
+    bet = g.betweenness()
+
+    vertices_ordenados = sorted(
+        range(g.vcount()),
+        key=lambda v: bet[v],
+        reverse=True
+    )
+
+    vertices_removidos = vertices_ordenados[:n_remover]
+
+    g.delete_vertices(vertices_removidos)
+
+    componentes = g.connected_components(mode="weak")
+
+    S_cent = max(componentes.sizes())
+    c_cent = len(componentes)
+
+    return S_cent, c_cent
+
+def analisar_robustez_aleatoria(grafo, percentual=0.05):
+    g = grafo.copy()
+
+    n_remover = math.ceil(g.vcount() * percentual)
+
+    vertices_removidos = random.sample(
+        range(g.vcount()),
+        n_remover
+    )
+
+    g.delete_vertices(vertices_removidos)
+
+    componentes = g.connected_components(mode="weak")
+
+    S_rand = max(componentes.sizes())
+    c_rand = len(componentes)
+
+    return S_rand, c_rand
+
+def analisar_robustez_total(grafo, n_execucoes=100):
+    print("=" * 60)
+    print("ANÁLISE DE ROBUSTEZ")
+    print("=" * 60)
+
+    
+    resultados_rand = []
+
+    for _ in range(n_execucoes):
+        S_rand, c_rand = analisar_robustez_aleatoria(grafo)
+
+        resultados_rand.append(
+            (S_rand, c_rand)
+        )
+
+    S_cent, c_cent = analisar_robustez_centralidade(grafo)
+
+    media_S_rand = mean(
+        x[0] for x in resultados_rand
+    )
+
+    media_c_rand = mean(
+        x[1] for x in resultados_rand
+    )
+
+    print(f"S_rand = {media_S_rand:.2f}")
+    print(f"c_rand = {media_c_rand:.2f}")
+
+    print(f"S_cent = {S_cent}")
+    print(f"c_cent = {c_cent}")
+
 def main():
     arestas = ler_arquivo()
 
@@ -253,10 +432,27 @@ def main():
     # gerar_imagem_grafo(maior_componente_grafo_podado, "imgs/grafo_podado_maior_componente.png")
 
     # analisar_grafo(grafo, "Análise do grafo completo")
-    analisar_grafo(maior_componente_grafo_podado, "Análise estrutural do grafo podado")
+    # analisar_grafo(maior_componente_grafo_podado, "Análise estrutural do grafo podado")
 
     # analisar_distribuicao_grau(grafo, "Distribuição de grau do grafo completo")
     # analisar_distribuicao_grau(maior_componente_grafo_podado, "Distribuição de grau do grafo podado")
+
+    # analisar_algoritmos(maior_componente_grafo_podado, "bfs", 60)
+    # analisar_algoritmos(maior_componente_grafo_podado, "dfs", 60)
+    # analisar_algoritmos(maior_componente_grafo_podado, "is_eulerian", 60)
+    # # Dijkstra não é executado devido a pesos negativos
+    # # analisar_algoritmos(maior_componente_grafo_podado, "dijkstra", 1)  
+    # analisar_algoritmos(maior_componente_grafo_podado, "tarjan", 60)
+    # analisar_algoritmos(maior_componente_grafo_podado, "kruskal", 60)
+
+    # # bellman_ford encontrou ciclo negativo 
+    # # analisar_algoritmos(maior_componente_grafo_podado, "bellman_ford", 15)
+    # analisar_algoritmos(maior_componente_grafo_podado, "floyd_warshall", 60)
+
+    # analisar_lei_potencia(maior_componente_grafo_podado, "Análise de Lei de Potência do grafo podado")
+
+    analisar_robustez_total(maior_componente_grafo_podado)
+    
 
 
 if __name__ == "__main__":
