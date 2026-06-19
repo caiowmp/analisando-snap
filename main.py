@@ -65,7 +65,6 @@ def criar_grafo(arestas, arquivo_gml="grafo_original.gml"):
         grafo = ig.Graph.Read_GML(arquivo_gml)
         return grafo
 
-    # Conjunto de todos os vértices
     vertices = set()
 
     for source, target, _ in arestas:
@@ -74,14 +73,11 @@ def criar_grafo(arestas, arquivo_gml="grafo_original.gml"):
 
     vertices = sorted(vertices)
 
-    # Mapeamento:
-    # id original -> índice interno do igraph
     mapa_vertices = {
         vertice: indice
         for indice, vertice in enumerate(vertices)
     }
 
-    # Converte as arestas para índices do igraph
     arestas_igraph = []
 
     for source, target, _ in arestas:
@@ -94,17 +90,14 @@ def criar_grafo(arestas, arquivo_gml="grafo_original.gml"):
 
     pesos = [rating for _, _, rating in arestas]
 
-    # Criação do grafo
     grafo = ig.Graph(
         n=len(vertices),
         edges=arestas_igraph,
         directed=True
     )
 
-    # Guarda o ID original de cada vértice
     grafo.vs["id"] = vertices
 
-    # Guarda o peso de cada aresta
     grafo.es["weight"] = pesos
 
     grafo.save(arquivo_gml)
@@ -120,7 +113,7 @@ def gerar_imagem_grafo(grafo, arquivo):
         print(f"A imagem já existe {arquivo}. Caso queira gerar novamente, por favor, remova o arquivo existente.")
         return
     
-    fig, ax = plt.subplots(figsize=(30, 30))  # Tamanho da figura em polegadas
+    fig, ax = plt.subplots(figsize=(30, 30)) 
     
     layout = grafo.layout("fr")
     layout.scale(10)
@@ -146,6 +139,10 @@ def gerar_imagem_grafo(grafo, arquivo):
     )
 
 def analisar_grafo(grafo, titulo="ANÁLISE ESTRUTURAL DO GRAFO"):
+    """
+    Calcula e exibe métricas estruturais da rede.
+    """
+
     print("=" * 60)
     print(titulo.center(60))
     print("=" * 60)
@@ -226,6 +223,10 @@ def analisar_grafo(grafo, titulo="ANÁLISE ESTRUTURAL DO GRAFO"):
     print("=" * 60)
 
 def analisar_distribuicao_grau(grafo, titulo="DISTRIBUIÇÃO DE GRAU"):
+    """
+    Gera um histograma da distribuição de graus dos vértices.
+    """
+    
     print("=" * 60)
     print(titulo.center(60))
     print("=" * 60)
@@ -242,6 +243,10 @@ def analisar_distribuicao_grau(grafo, titulo="DISTRIBUIÇÃO DE GRAU"):
     plt.savefig("imgs/distribuicao_grau.png", dpi=300, bbox_inches="tight")
 
 def analisar_algoritmos(grafo, algoritmo, n_execucoes):
+    """
+    Avalia o desempenho de algoritmos clássicos de grafos.
+    """    
+    
     print("=" * 60)
     print(f"ANÁLISE DE DESEMPENHO: {algoritmo.upper()}".center(60))
     print("=" * 60)
@@ -297,43 +302,38 @@ def analisar_algoritmos(grafo, algoritmo, n_execucoes):
     )
 
 def analisar_lei_potencia(grafo, titulo="ANÁLISE DE LEI DE POTÊNCIA"):
+    """
+    Analisa a distribuição de graus do grafo e plota o gráfico em escala log-log.
+    """
+
     print("=" * 60)
     print(titulo.center(60))
     print("=" * 60)    
     
-    # 1. Coletar os graus de todos os vértices do seu grafo g
     graus = grafo.degree()
 
-    # 2. Contar a frequência de cada grau k
     contagem_graus = Counter(graus)
     total_vertices = len(graus)
 
-    # Separar os valores de k e suas respectivas frequências/probabilidades
     lista_k = np.array(list(contagem_graus.keys()))
     frequencias = np.array(list(contagem_graus.values()))
     p_k = frequencias / total_vertices  # Probabilidade P(k)
 
-    # Filtrar k = 0 para evitar problemas matemáticos com o logaritmo
     mascara = lista_k > 0
     lista_k = lista_k[mascara]
     p_k = p_k[mascara]
 
-    # 3. Plotar o gráfico em escala Log-Log
     plt.figure(figsize=(8, 5))
     plt.scatter(lista_k, p_k, color='darkblue', alpha=0.7, edgecolors='black', label='Dados da Rede')
 
-    # Configurar a escala logarítmica nos dois eixos (exigência do trabalho)
     plt.xscale('log')
     plt.yscale('log')
-
-    # Customização do gráfico (Tema Claro)
     plt.xlabel('Grau (k) - Escala Log')
     plt.ylabel('Probabilidade P(k) - Escala Log')
     plt.title('Distribuição de Graus em Escala Log-Log')
     plt.grid(True, which="both", ls="--", alpha=0.5)
     plt.legend()
 
-    # Salvar a imagem para o seu relatório
     if(Path.exists("imgs/distribuicao_graus_loglog.png")):
         print("A imagem da distribuição de graus em escala log-log já existe. Caso queira gerar novamente, por favor, remova o arquivo existente.")
         return
@@ -342,6 +342,10 @@ def analisar_lei_potencia(grafo, titulo="ANÁLISE DE LEI DE POTÊNCIA"):
     # plt.show()
 
 def analisar_robustez_centralidade(grafo, percentual=0.05):
+    """
+    Simula um ataque direcionado removendo vértices mais centrais.
+    """
+    
     g = grafo.copy()
 
     n_remover = math.ceil(g.vcount() * percentual)
@@ -366,6 +370,10 @@ def analisar_robustez_centralidade(grafo, percentual=0.05):
     return S_cent, c_cent
 
 def analisar_robustez_aleatoria(grafo, percentual=0.05):
+    """
+    Simula um ataque aleatório removendo vértices de forma aleatória.
+    """
+
     g = grafo.copy()
 
     n_remover = math.ceil(g.vcount() * percentual)
@@ -385,6 +393,10 @@ def analisar_robustez_aleatoria(grafo, percentual=0.05):
     return S_rand, c_rand
 
 def analisar_robustez_total(grafo, n_execucoes=100):
+    """
+    Compara o impacto de falhas aleatórias e ataques direcionados.
+    """
+
     print("=" * 60)
     print("ANÁLISE DE ROBUSTEZ")
     print("=" * 60)
@@ -416,6 +428,10 @@ def analisar_robustez_total(grafo, n_execucoes=100):
     print(f"c_cent = {c_cent}")
 
 def main():
+    """
+    Coordena a execução das etapas de construção e análise da rede.
+    """
+
     arestas = ler_arquivo()
 
     grafo = criar_grafo(arestas, "grafo_original.gml")
